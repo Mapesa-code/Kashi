@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA Analytics Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5D5CDE',
+                        'primary-dark': '#4A49B8',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #5D5CDE;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .card-hover {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .nba-gradient {
+            background: linear-gradient(135deg, #1d4ed8 0%, #7c3aed 100%);
+        }
+        .lakers-gradient {
+            background: linear-gradient(135deg, #fbbf24 0%, #7c2d12 100%);
+        }
+    </style>
+</head>
+<body class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white min-h-screen">
+
+    <!-- Header -->
+    <header class="nba-gradient text-white shadow-lg">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-basketball-ball text-3xl"></i>
+                    <div>
+                        <h1 class="text-2xl md:text-3xl font-bold">NBA Analytics Hub</h1>
+                        <p class="text-blue-100 text-sm">Real-time NBA data, sentiment & highlights analysis</p>
+                    </div>
+                </div>
+                <div class="hidden md:flex items-center space-x-4">
+                    <div class="text-right">
+                        <div class="text-sm text-blue-100">Live Data</div>
+                        <div class="text-xs text-blue-200" id="lastUpdate">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div class="container mx-auto px-4">
+            <div class="flex space-x-1 overflow-x-auto">
+                <button class="tab-btn active px-4 py-3 text-sm font-medium rounded-t-lg border-b-2 border-primary bg-primary text-white" data-tab="dashboard">
+                    <i class="fas fa-chart-line mr-2"></i>Dashboard
+                </button>
+                <button class="tab-btn px-4 py-3 text-sm font-medium rounded-t-lg border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600" data-tab="games">
+                    <i class="fas fa-gamepad mr-2"></i>Game Analysis
+                </button>
+                <button class="tab-btn px-4 py-3 text-sm font-medium rounded-t-lg border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600" data-tab="sentiment">
+                    <i class="fas fa-heart mr-2"></i>Lakers Sentiment
+                </button>
+                <button class="tab-btn px-4 py-3 text-sm font-medium rounded-t-lg border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600" data-tab="highlights">
+                    <i class="fas fa-video mr-2"></i>Highlights
+                </button>
+                <button class="tab-btn px-4 py-3 text-sm font-medium rounded-t-lg border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600" data-tab="predictions">
+                    <i class="fas fa-crystal-ball mr-2"></i>Predictions
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6">
+
+        <!-- Dashboard Tab -->
+        <div id="dashboard" class="tab-content active">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold mb-2">NBA Analytics Dashboard</h2>
+                <p class="text-gray-600 dark:text-gray-400">Comprehensive overview of NBA data, sentiment, and highlights</p>
+            </div>
+
+            <!-- Quick Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-6 text-white card-hover">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-semibold">Games Analyzed</h3>
+                            <p class="text-2xl font-bold" id="gamesCount">--</p>
+                        </div>
+                        <i class="fas fa-basketball-ball text-3xl opacity-70"></i>
+                    </div>
+                </div>
+                <div class="bg-gradient-to-r from-yellow-500 to-red-600 rounded-lg p-6 text-white card-hover">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-semibold">Lakers Sentiment</h3>
+                            <p class="text-2xl font-bold" id="lakerssentiment">--</p>
+                        </div>
+                        <i class="fas fa-heart text-3xl opacity-70"></i>
+                    </div>
+                </div>
+                <div class="bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg p-6 text-white card-hover">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-semibold">Highlights Found</h3>
+                            <p class="text-2xl font-bold" id="highlightsCount">--</p>
+                        </div>
+                        <i class="fas fa-video text-3xl opacity-70"></i>
+                    </div>
+                </div>
+                <div class="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-6 text-white card-hover">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-semibold">Prediction Accuracy</h3>
+                            <p class="text-2xl font-bold" id="accuracy">--</p>
+                        </div>
+                        <i class="fas fa-target text-3xl opacity-70"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 card-hover">
+                    <div class="text-center">
+                        <i class="fas fa-chart-bar text-4xl text-primary mb-4"></i>
+                        <h3 class="text-xl font-semibold mb-2">Analyze Games</h3>
+                        <p class="text-gray-600 dark:text-gray-400 mb-4">Get detailed NBA game statistics and predictions</p>
+                        <button onclick="switchTab('games')" class="w-full bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg transition-colors">
+                            Start Analysis
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 card-hover">
+                    <div class="text-center">
+                        <i class="fas fa-comments text-4xl text-yellow-500 mb-4"></i>
+                        <h3 class="text-xl font-semibold mb-2">Check Sentiment</h3>
+                        <p class="text-gray-600 dark:text-gray-400 mb-4">Monitor Lakers fan sentiment across social media</p>
+                        <button onclick="switchTab('sentiment')" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg transition-colors">
+                            Check Sentiment
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 card-hover">
+                    <div class="text-center">
+                        <i class="fas fa-play-circle text-4xl text-purple-500 mb-4"></i>
+                        <h3 class="text-xl font-semibold mb-2">Watch Highlights</h3>
+                        <p class="text-gray-600 dark:text-gray-400 mb-4">Find and analyze the best NBA highlights</p>
+                        <button onclick="switchTab('highlights')" class="w-full bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors">
+                            Find Highlights
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Analysis Tab -->
+        <div id="games" class="tab-content">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold mb-2">NBA Game Analysis</h2>
+                <p class="text-gray-600 dark:text-gray-400">Analyze recent NBA games and get predictions</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Controls -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4">Analysis Settings</h3>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Date Range</label>
+                                <select id="dateRange" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-base">
+                                    <option value="7">Last 7 days</option>
+                                    <option value="14">Last 14 days</option>
+                                    <option value="30" selected>Last 30 days</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Team Focus</label>
+                                <select id="teamFocus" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-base">
+                                    <option value="all">All Teams</option>
+                                    <option value="lakers">Lakers</option>
+                                    <option value="warriors">Warriors</option>
+                                    <option value="celtics">Celtics</option>
+                                </select>
+                            </div>
+                            
+                            <button id="analyzeGamesBtn" class="w-full bg-primary hover:bg-primary-dark text-white px-4 py-3 rounded-lg transition-colors font-medium">
+                                <i class="fas fa-chart-line mr-2"></i>Analyze Games
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold">Game Analysis Results</h3>
+                            <div id="gamesLoading" class="loading-spinner hidden"></div>
+                        </div>
+                        
+                        <div id="gamesResults" class="space-y-4">
+                            <div class="text-center text-gray-500 dark:text-gray-400 py-8">
+                                <i class="fas fa-basketball-ball text-4xl mb-4 opacity-50"></i>
+                                <p>Click "Analyze Games" to get started</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lakers Sentiment Tab -->
+        <div id="sentiment" class="tab-content">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold mb-2">Lakers Fan Sentiment Analysis</h2>
+                <p class="text-gray-600 dark:text-gray-400">Monitor Lakers fan sentiment across social media platforms</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Controls -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4">Sentiment Settings</h3>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Data Sources</label>
+                                <div class="space-y-2">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" checked class="mr-2 text-primary focus:ring-primary" value="reddit">
+                                        <span>Reddit</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" checked class="mr-2 text-primary focus:ring-primary" value="twitter">
+                                        <span>Social Media</span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Time Period</label>
+                                <select id="sentimentPeriod" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-base">
+                                    <option value="24h">Last 24 hours</option>
+                                    <option value="7d" selected>Last 7 days</option>
+                                    <option value="30d">Last 30 days</option>
+                                </select>
+                            </div>
+                            
+                            <button id="analyzeSentimentBtn" class="w-full lakers-gradient text-white px-4 py-3 rounded-lg transition-colors font-medium hover:opacity-90">
+                                <i class="fas fa-heart mr-2"></i>Analyze Sentiment
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold">Sentiment Analysis Results</h3>
+                            <div id="sentimentLoading" class="loading-spinner hidden"></div>
+                        </div>
+                        
+                        <div id="sentimentResults" class="space-y-4">
+                            <div class="text-center text-gray-500 dark:text-gray-400 py-8">
+                                <i class="fas fa-heart text-4xl mb-4 opacity-50"></i>
+                                <p>Click "Analyze Sentiment" to check Lakers fan mood</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Highlights Tab -->
+        <div id="highlights" class="tab-content">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold mb-2">NBA Highlights Analysis</h2>
+                <p class="text-gray-600 dark:text-gray-400">Find and analyze the best NBA highlights</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Controls -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4">Search Settings</h3>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Search Query</label>
+                                <input type="text" id="highlightQuery" placeholder="NBA highlights, Lakers, dunks..." 
+                                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-base" 
+                                       value="NBA highlights">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Video Duration</label>
+                                <select id="videoDuration" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-base">
+                                    <option value="short">Short (< 4 min)</option>
+                                    <option value="medium">Medium (4-20 min)</option>
+                                    <option value="long">Long (> 20 min)</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Results Limit</label>
+                                <select id="resultsLimit" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-base">
+                                    <option value="5">5 videos</option>
+                                    <option value="10" selected>10 videos</option>
+                                    <option value="20">20 videos</option>
+                                </select>
+                            </div>
+                            
+                            <button id="searchHighlightsBtn" class="w-full bg-purple-500 hover:bg-purple-600 text-white px-4 py-3 rounded-lg transition-colors font-medium">
+                                <i class="fas fa-search mr-2"></i>Search Highlights
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold">Highlight Videos</h3>
+                            <div id="highlightsLoading" class="loading-spinner hidden"></div>
+                        </div>
+                        
+                        <div id="highlightsResults" class="space-y-4">
+                            <div class="text-center text-gray-500 dark:text-gray-400 py-8">
+                                <i class="fas fa-video text-4xl mb-4 opacity-50"></i>
+                                <p>Search for NBA highlights to get started</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Predictions Tab -->
+        <div id="predictions" class="tab-content">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold mb-2">Game Predictions</h2>
+                <p class="text-gray-600 dark:text-gray-400">AI-powered NBA game outcome predictions</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Controls -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4">Prediction Settings</h3>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Home Team</label>
+                                <input type="text" id="homeTeam" placeholder="e.g. Lakers" 
+                                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-base">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Away Team</label>
+                                <input type="text" id="awayTeam" placeholder="e.g. Warriors" 
+                                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-base">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Analysis Type</label>
+                                <select id="analysisType" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-base">
+                                    <option value="simple">Quick Prediction</option>
+                                    <option value="detailed">Detailed Analysis</option>
+                                    <option value="advanced">Advanced Stats</option>
+                                </select>
+                            </div>
+                            
+                            <button id="makePredictionBtn" class="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded-lg transition-colors font-medium">
+                                <i class="fas fa-crystal-ball mr-2"></i>Make Prediction
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold">Prediction Results</h3>
+                            <div id="predictionLoading" class="loading-spinner hidden"></div>
+                        </div>
+                        
+                        <div id="predictionResults" class="space-y-4">
+                            <div class="text-center text-gray-500 dark:text-gray-400 py-8">
+                                <i class="fas fa-crystal-ball text-4xl mb-4 opacity-50"></i>
+                                <p>Enter team names and click "Make Prediction"</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Custom Modal -->
+    <div id="customModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+            <h3 id="modalTitle" class="text-lg font-semibold mb-4"></h3>
+            <p id="modalMessage" class="text-gray-600 dark:text-gray-300 mb-6"></p>
+            <div class="flex justify-end space-x-3">
+                <button id="modalCancel" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Cancel</button>
+                <button id="modalConfirm" class="px-4 py-2 bg-primary text-white hover:bg-primary-dark rounded">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Dark mode detection
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+
+        // Tab functionality
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active', 'bg-primary', 'text-white', 'border-primary');
+                btn.classList.add('border-transparent');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to selected tab button
+            const activeBtn = document.querySelector(`[data-tab="${tabName}"]`);
+            activeBtn.classList.add('active', 'bg-primary', 'text-white', 'border-primary');
+            activeBtn.classList.remove('border-transparent');
+        }
+
+        // Tab event listeners
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tabName = btn.getAttribute('data-tab');
+                switchTab(tabName);
+            });
+        });
+
+        // Custom modal functions
+        function showModal(title, message, onConfirm = null) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = message;
+            document.getElementById('customModal').classList.remove('hidden');
+            
+            const confirmBtn = document.getElementById('modalConfirm');
+            const cancelBtn = document.getElementById('modalCancel');
+            
+            confirmBtn.onclick = () => {
+                document.getElementById('customModal').classList.add('hidden');
+                if (onConfirm) onConfirm();
+            };
+            
+            cancelBtn.onclick = () => {
+                document.getElementById('customModal').classList.add('hidden');
+            };
+        }
+
+        function showAlert(message) {
+            showModal('Information', message);
+        }
+
+        // Initialize Poe handlers
+        function initializePoeHandlers() {
+            if (typeof window.Poe !== 'undefined') {
+                // Game analysis handler
+                window.Poe.registerHandler("game-analysis", (result, context) => {
+                    const loading = document.getElementById('gamesLoading');
+                    const resultsDiv = document.getElementById('gamesResults');
+                    
+                    loading.classList.add('hidden');
+                    
+                    if (result.status === "error") {
+                        resultsDiv.innerHTML = `
+                            <div class="bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                                <div class="flex items-center">
+                                    <i class="fas fa-exclamation-triangle text-red-500 mr-3"></i>
+                                    <div>
+                                        <h4 class="font-semibold text-red-800 dark:text-red-200">Analysis Error</h4>
+                                        <p class="text-red-600 dark:text-red-300">Unable to complete game analysis. Please try again.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    const response = result.responses[0];
+                    if (response.status === "complete") {
+                        resultsDiv.innerHTML = `
+                            <div class="bg-blue-50 dark:bg-blue-900/50 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+                                <h4 class="font-semibold text-blue-800 dark:text-blue-200 mb-3 flex items-center">
+                                    <i class="fas fa-chart-line mr-2"></i>Game Analysis Results
+                                </h4>
+                                <div class="prose dark:prose-invert max-w-none">
+                                    ${response.content.replace(/\n/g, '<br>')}
+                                </div>
+                            </div>
+                        `;
+                        updateDashboardStats();
+                    } else {
+                        resultsDiv.innerHTML = `
+                            <div class="bg-blue-50 dark:bg-blue-900/50 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+                                <h4 class="font-semibold text-blue-800 dark:text-blue-200 mb-3 flex items-center">
+                                    <i class="fas fa-spinner fa-spin mr-2"></i>Analyzing Games...
+                                </h4>
+                                <div class="prose dark:prose-invert max-w-none">
+                                    ${response.content.replace(/\n/g, '<br>')}
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+
+                // Sentiment analysis handler
+                window.Poe.registerHandler("sentiment-analysis", (result, context) => {
+                    const loading = document.getElementById('sentimentLoading');
+                    const resultsDiv = document.getElementById('sentimentResults');
+                    
+                    loading.classList.add('hidden');
+                    
+                    if (result.status === "error") {
+                        resultsDiv.innerHTML = `
+                            <div class="bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                                <div class="flex items-center">
+                                    <i class="fas fa-exclamation-triangle text-red-500 mr-3"></i>
+                                    <div>
+                                        <h4 class="font-semibold text-red-800 dark:text-red-200">Sentiment Analysis Error</h4>
+                                        <p class="text-red-600 dark:text-red-300">Unable to analyze sentiment. Please try again.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    const response = result.responses[0];
+                    if (response.status === "complete") {
+                        // Extract sentiment from response
+                        const content = response.content.toLowerCase();
+                        let sentimentEmoji = '😐';
+                        let sentimentColor = 'yellow';
+                        
+                        if (content.includes('positive')) {
+                            sentimentEmoji = '😊';
+                            sentimentColor = 'green';
+                        } else if (content.includes('negative')) {
+                            sentimentEmoji = '😞';
+                            sentimentColor = 'red';
+                        }
+                        
+                        resultsDiv.innerHTML = `
+                            <div class="bg-${sentimentColor}-50 dark:bg-${sentimentColor}-900/50 border border-${sentimentColor}-200 dark:border-${sentimentColor}-800 rounded-lg p-6">
+                                <h4 class="font-semibold text-${sentimentColor}-800 dark:text-${sentimentColor}-200 mb-3 flex items-center">
+                                    <span class="text-2xl mr-2">${sentimentEmoji}</span>Lakers Sentiment Analysis
+                                </h4>
+                                <div class="prose dark:prose-invert max-w-none">
+                                    ${response.content.replace(/\n/g, '<br>')}
+                                </div>
+                            </div>
+                        `;
+                        updateDashboardStats();
+                    } else {
+                        resultsDiv.innerHTML = `
+                            <div class="bg-yellow-50 dark:bg-yellow-900/50 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
+                                <h4 class="font-semibold text-yellow-800 dark:text-yellow-200 mb-3 flex items-center">
+                                    <i class="fas fa-spinner fa-spin mr-2"></i>Analyzing Sentiment...
+                                </h4>
+                                <div class="prose dark:prose-invert max-w-none">
+                                    ${response.content.replace(/\n/g, '<br>')}
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+
+                // Highlights search handler
+                window.Poe.registerHandler("highlights-search", (result, context) => {
+                    const loading = document.getElementById('highlightsLoading');
+                    const resultsDiv = document.getElementById('highlightsResults');
+                    
+                    loading.classList.add('hidden');
+                    
+                    if (result.status === "error") {
+                        resultsDiv.innerHTML = `
+                            <div class="bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                                <div class="flex items-center">
+                                    <i class="fas fa-exclamation-triangle text-red-500 mr-3"></i>
+                                    <div>
+                                        <h4 class="font-semibold text-red-800 dark:text-red-200">Search Error</h4>
+                                        <p class="text-red-600 dark:text-red-300">Unable to search for highlights. Please try again.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    const response = result.responses[0];
+                    if (response.status === "complete") {
+                        resultsDiv.innerHTML = `
+                            <div class="bg-purple-50 dark:bg-purple-900/50 border border-purple-200 dark:border-purple-800 rounded-lg p-6">
+                                <h4 class="font-semibold text-purple-800 dark:text-purple-200 mb-3 flex items-center">
+                                    <i class="fas fa-video mr-2"></i>NBA Highlights Found
+                                </h4>
+                                <div class="prose dark:prose-invert max-w-none">
+                                    ${response.content.replace(/\n/g, '<br>')}
+                                </div>
+                            </div>
+                        `;
+                        updateDashboardStats();
+                    } else {
+                        resultsDiv.innerHTML = `
+                            <div class="bg-purple-50 dark:bg-purple-900/50 border border-purple-200 dark:border-purple-800 rounded-lg p-6">
+                                <h4 class="font-semibold text-purple-800 dark:text-purple-200 mb-3 flex items-center">
+                                    <i class="fas fa-spinner fa-spin mr-2"></i>Searching Highlights...
+                                </h4>
+                                <div class="prose dark:prose-invert max-w-none">
+                                    ${response.content.replace(/\n/g, '<br>')}
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+
+                // Prediction handler
+                window.Poe.registerHandler("game-prediction", (result, context) => {
+                    const loading = document.getElementById('predictionLoading');
+                    const resultsDiv = document.getElementById('predictionResults');
+                    
+                    loading.classList.add('hidden');
+                    
+                    if (result.status === "error") {
+                        resultsDiv.innerHTML = `
+                            <div class="bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                                <div class="flex items-center">
+                                    <i class="fas fa-exclamation-triangle text-red-500 mr-3"></i>
+                                    <div>
+                                        <h4 class="font-semibold text-red-800 dark:text-red-200">Prediction Error</h4>
+                                        <p class="text-red-600 dark:text-red-300">Unable to make prediction. Please try again.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    const response = result.responses[0];
+                    if (response.status === "complete") {
+                        resultsDiv.innerHTML = `
+                            <div class="bg-green-50 dark:bg-green-900/50 border border-green-200 dark:border-green-800 rounded-lg p-6">
+                                <h4 class="font-semibold text-green-800 dark:text-green-200 mb-3 flex items-center">
+                                    <i class="fas fa-crystal-ball mr-2"></i>Game Prediction
+                                </h4>
+                                <div class="prose dark:prose-invert max-w-none">
+                                    ${response.content.replace(/\n/g, '<br>')}
+                                </div>
+                            </div>
+                        `;
+                        updateDashboardStats();
+                    } else {
+                        resultsDiv.innerHTML = `
+                            <div class="bg-green-50 dark:bg-green-900/50 border border-green-200 dark:border-green-800 rounded-lg p-6">
+                                <h4 class="font-semibold text-green-800 dark:text-green-200 mb-3 flex items-center">
+                                    <i class="fas fa-spinner fa-spin mr-2"></i>Making Prediction...
+                                </h4>
+                                <div class="prose dark:prose-invert max-w-none">
+                                    ${response.content.replace(/\n/g, '<br>')}
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+            }
+        }
+
+        // Event listeners for analysis buttons
+        document.getElementById('analyzeGamesBtn').addEventListener('click', async () => {
+            const dateRange = document.getElementById('dateRange').value;
+            const teamFocus = document.getElementById('teamFocus').value;
+            const loading = document.getElementById('gamesLoading');
+            
+            if (typeof window.Poe === 'undefined') {
+                showAlert('Poe API not available. This feature requires the Poe environment.');
+                return;
+            }
+            
+            loading.classList.remove('hidden');
+            
+            try {
+                const prompt = `@Claude-Sonnet-4 Analyze NBA games from the last ${dateRange} days${teamFocus !== 'all' ? ` focusing on the ${teamFocus}` : ''}. Provide:
+
+1. Recent game results and standout performances
+2. Team statistics and trends
+3. Key player performances
+4. Injury reports if relevant
+5. Predictions for upcoming games
+6. Statistical insights and patterns
+
+Format the response in a clear, organized way with bullet points and sections.`;
+
+                await window.Poe.sendUserMessage(prompt, {
+                    handler: "game-analysis",
+                    stream: true,
+                    openChat: false
+                });
+            } catch (error) {
+                loading.classList.add('hidden');
+                showAlert('Error starting game analysis: ' + error.message);
+            }
+        });
+
+        document.getElementById('analyzeSentimentBtn').addEventListener('click', async () => {
+            const period = document.getElementById('sentimentPeriod').value;
+            const loading = document.getElementById('sentimentLoading');
+            
+            if (typeof window.Poe === 'undefined') {
+                showAlert('Poe API not available. This feature requires the Poe environment.');
+                return;
+            }
+            
+            loading.classList.remove('hidden');
+            
+            try {
+                const prompt = `@Claude-Sonnet-4 Analyze Lakers fan sentiment over the ${period.replace('h', ' hours').replace('d', ' days')}. Please:
+
+1. Search for recent Lakers discussions on social media and forums
+2. Analyze fan reactions to recent games, trades, and news
+3. Identify the main topics fans are discussing
+4. Determine overall sentiment (positive, negative, neutral)
+5. Highlight key concerns or excitement points
+6. Provide a sentiment score and explanation
+7. Compare to previous periods if possible
+
+Give me a comprehensive sentiment analysis with specific examples and overall mood assessment.`;
+
+                await window.Poe.sendUserMessage(prompt, {
+                    handler: "sentiment-analysis",
+                    stream: true,
+                    openChat: false
+                });
+            } catch (error) {
+                loading.classList.add('hidden');
+                showAlert('Error starting sentiment analysis: ' + error.message);
+            }
+        });
+
+        document.getElementById('searchHighlightsBtn').addEventListener('click', async () => {
+            const query = document.getElementById('highlightQuery').value.trim();
+            const duration = document.getElementById('videoDuration').value;
+            const limit = document.getElementById('resultsLimit').value;
+            const loading = document.getElementById('highlightsLoading');
+            
+            if (!query) {
+                showAlert('Please enter a search query for highlights.');
+                return;
+            }
+            
+            if (typeof window.Poe === 'undefined') {
+                showAlert('Poe API not available. This feature requires the Poe environment.');
+                return;
+            }
+            
+            loading.classList.remove('hidden');
+            
+            try {
+                const prompt = `@Claude-Sonnet-4 Help me find NBA highlights with these criteria:
+
+Search Query: "${query}"
+Video Duration: ${duration} videos preferred
+Number of Results: ${limit} videos
+
+Please provide:
+1. Search strategy for finding the best highlights
+2. Recommended channels or sources for NBA highlights
+3. Types of plays to look for based on the query
+4. Analysis criteria for ranking highlights
+5. Current trending NBA moments
+6. Tips for finding high-quality highlight videos
+
+If possible, suggest specific recent highlight-worthy games or moments that match the search criteria.`;
+
+                await window.Poe.sendUserMessage(prompt, {
+                    handler: "highlights-search",
+                    stream: true,
+                    openChat: false
+                });
+            } catch (error) {
+                loading.classList.add('hidden');
+                showAlert('Error searching highlights: ' + error.message);
+            }
+        });
+
+        document.getElementById('makePredictionBtn').addEventListener('click', async () => {
+            const homeTeam = document.getElementById('homeTeam').value.trim();
+            const awayTeam = document.getElementById('awayTeam').value.trim();
+            const analysisType = document.getElementById('analysisType').value;
+            const loading = document.getElementById('predictionLoading');
+            
+            if (!homeTeam || !awayTeam) {
+                showAlert('Please enter both home and away team names.');
+                return;
+            }
+            
+            if (typeof window.Poe === 'undefined') {
+                showAlert('Poe API not available. This feature requires the Poe environment.');
+                return;
+            }
+            
+            loading.classList.remove('hidden');
+            
+            try {
+                const prompt = `@Claude-Sonnet-4 Make a ${analysisType} prediction for this NBA matchup:
+
+Home Team: ${homeTeam}
+Away Team: ${awayTeam}
+
+Please provide:
+1. Team comparison and recent form
+2. Head-to-head record and trends
+3. Key player matchups to watch
+4. Injury reports and roster status
+5. Home court advantage analysis
+6. Statistical predictions (score, key stats)
+7. Confidence level and reasoning
+8. Key factors that could influence the outcome
+9. Betting insights (if applicable)
+
+Make your prediction comprehensive and data-driven while explaining your reasoning clearly.`;
+
+                await window.Poe.sendUserMessage(prompt, {
+                    handler: "game-prediction",
+                    stream: true,
+                    openChat: false
+                });
+            } catch (error) {
+                loading.classList.add('hidden');
+                showAlert('Error making prediction: ' + error.message);
+            }
+        });
+
+        // Update dashboard stats
+        function updateDashboardStats() {
+            // Simulate updating stats
+            document.getElementById('gamesCount').textContent = Math.floor(Math.random() * 50) + 100;
+            document.getElementById('highlightsCount').textContent = Math.floor(Math.random() * 20) + 10;
+            document.getElementById('accuracy').textContent = (Math.random() * 15 + 80).toFixed(1) + '%';
+            
+            // Update Lakers sentiment based on recent analysis
+            const sentiments = ['POSITIVE', 'NEUTRAL', 'NEGATIVE'];
+            const colors = ['text-green-600', 'text-yellow-600', 'text-red-600'];
+            const randomIndex = Math.floor(Math.random() * sentiments.length);
+            const sentimentElement = document.getElementById('lakerssentiment');
+            sentimentElement.textContent = sentiments[randomIndex];
+            sentimentElement.className = colors[randomIndex] + ' text-2xl font-bold';
+        }
+
+        // Update last update time
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent = now.toLocaleTimeString();
+        }
+
+        // Initialize the app
+        function initializeApp() {
+            initializePoeHandlers();
+            updateDashboardStats();
+            updateTime();
+            setInterval(updateTime, 60000); // Update every minute
+        }
+
+        // Start the app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+
+</body>
+</html>
